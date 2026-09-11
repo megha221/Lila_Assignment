@@ -1,73 +1,90 @@
 # Insights
 
-Numbers below are from the processed catalog + heatmaps (796 matches, 5 days). Open the tool, pick the map, and turn on the named overlay to see the same pattern.
+Three findings from exploring the Feb 10–14, 2026 LILA BLACK telemetry with this tool. Counts come from the processed catalog (`web/public/data/index.json`, 796 matches, ~89k event rows).
 
 ---
 
-## 1. Combat is bot hunting, not PvP
+## 1. Combat is almost entirely PvE — humans dominate bots
 
-**What caught my eye.** The assignment asks for kill/death markers, but the map almost never shows a human-on-human fight.
+### What caught my eye
+Heatmaps and match markers are full of orange kill triangles, but almost none are true PvP.
 
-**Evidence.** Across 89,104 events there are **3 Kill + 3 Killed** (three matches total). In the same window: **2,415 BotKill** and **700 BotKilled**. Loot (12,885) outnumbers bot kills ~5:1. Lockdown has **zero** PvP events in this sample.
+### Evidence
+| Event | Count |
+|-------|------:|
+| `BotKill` (human kills bot) | **2,415** |
+| `BotKilled` (bot kills human) | **700** |
+| `Kill` / `Killed` (human vs human) | **3 / 3** |
 
-**Actionable?** Yes.
+Humans win bot fights at roughly **3.45 : 1**. Across 796 matches there are only **3** recorded human-on-human kills.
 
-| Metric | What to watch |
-|--------|----------------|
-| PvP events / match | Should rise if you add reasons to contest extracts |
-| BotKill / minute, time-to-first-bot | Bot density and first-contact pacing |
-| Loot / BotKill | ~5.3 now — if it climbs, combat is falling out of the loop |
+### Why a Level Designer should care
+If BLACK is sold as a tense extraction shooter, the live loop currently teaches “farm bots,” not “contest players.” POI design, audio stingers, and risk/reward that assume PvP will feel empty.
 
-**For a Level Designer.** Sightlines and cover you built for *player* fights are barely tested. The live combat loop is **bot camps on loot routes**. Tune bot spawn points and approach lanes first; treat PvP arenas as a future bet, not the current one. In the tool: sort matches by “fights,” then compare a 14-bot Ambrose match vs one of the three PvP IDs (`c4a250c9…`, `042774ea…`, `711c9a67…`).
-
----
-
-## 2. Grand Rift is almost off the rotation
-
-**What caught my eye.** Switching maps in the filter makes Grand Rift feel empty compared with Ambrose Valley.
-
-**Evidence.**
-
-| Map | Matches | Share | Human files | Path rows | Loot / match |
-|-----|---------|-------|-------------|-----------|--------------|
-| Ambrose Valley | 566 | **71.1%** | 554 | 61,013 | 17.6 |
-| Lockdown | 171 | 21.5% | 170 | 21,238 | 12.0 |
-| Grand Rift | 59 | **7.4%** | 57 | 6,853 | 14.9 |
-
-Fights per match are similar (~4). Grand Rift is not “less fun per session” in this data — it is **rarely entered**. Feb 14 (partial day) does not explain the gap; the skew is there on Feb 10–13 too.
-
-**Actionable?** Yes.
-
-| Metric | What to watch |
-|--------|----------------|
-| Match share by map | Target a floor (e.g. ≥20% each) |
-| Queue / playlist weight | If share stays ~7%, the playlist is the bug |
-| Extract / first-loot time on Grand Rift | If worse than Ambrose, the map is punishing new players |
-
-**For a Level Designer.** Do not spend the next pass polishing Ambrose chokepoints only. Either **weight Grand Rift up** in matchmaking, or give it a clearer first-minute route (spawn → visible loot → extract) so it earns play. Use the tool: same overlay on all three maps; Grand Rift’s heat is sparse because **n is small**, not because the layout is proven.
+### Actionable
+| Metric to watch | Action |
+|-----------------|--------|
+| PvP kill share (`Kill` / all kills) | Raise bot aggression or reduce bot density in high-traffic loot lanes so humans collide more |
+| Time-to-first-player-contact | Add contested mid-map extract / high-tier loot that forces path overlap |
+| BotKill : BotKilled ratio | If ratio stays >3, tune bot aim/HP or spawn bots on player approaches rather than static camps |
 
 ---
 
-## 3. Most of each map is unused; kills sit on a few cells
+## 2. Grand Rift is heavily underplayed vs Ambrose Valley
 
-**What caught my eye.** Traffic overlay on Ambrose looks like roads and a handful of buildings, not a filled valley. Kill overlay is even tighter.
+### What caught my eye
+Switching the map filter makes Grand Rift feel empty compared with Ambrose Valley.
 
-**Evidence** (64×64 grids, human `Position` for traffic):
+### Evidence
+| Map | Matches | Share |
+|-----|--------:|------:|
+| AmbroseValley | 566 | **71.1%** |
+| Lockdown | 171 | 21.5% |
+| GrandRift | **59** | **7.4%** |
 
-| Map | Cells with any traffic | Traffic in the hottest 10% of cells | Cells with any kill | Kills in the hottest 10% |
-|-----|------------------------|--------------------------------------|---------------------|---------------------------|
-| Ambrose Valley | 38.1% | **71.8%** | 11.9% | **95.6%** |
-| Lockdown | 24.6% | 81.6% | 5.6% | 100% |
-| Grand Rift | 24.0% | 76.0% | 2.7% | 100% |
+Path samples follow the same skew (Ambrose ~48.6k points vs Grand Rift ~5.7k).
 
-Hottest Ambrose traffic cell has **481** samples; many neighbors are zero. Storm is a weak closer: **39** storm deaths vs **703** combat deaths (about **5%**).
+### Why a Level Designer should care
+Balance and POI feedback for Grand Rift is statistically thin. You may be tuning a map most players never see — or the map is losing the queue for UX reasons (load time, spawn quality, extract clarity).
 
-**Actionable?** Yes.
+### Actionable
+| Metric to watch | Action |
+|-----------------|--------|
+| Map pick / queue rate by map | Audit Grand Rift matchmaking weight, unlock rules, and first-session map tutorial |
+| Early drop-off on Grand Rift (path length, leave rate) | Compare spawn-to-loot time vs Ambrose; fix dead spawns / unclear routes |
+| Extract success rate by map | If extracts fail more on Grand Rift, storm/extract timing may be punishing newcomers |
 
-| Metric | What to watch |
-|--------|----------------|
-| % cells with ≥N visits | Did the last POI pass actually move traffic? |
-| Kill-cell count | If it stays ~12% of Ambrose, fights are scripted to a few camps |
-| Storm deaths / match | If it stays ~0.05, the storm is a timer, not a space threat |
+---
 
-**For a Level Designer.** You can **lean in** (more loot/bots on those corridors — cheaper, matches current behavior) or **pull out** (side extracts, interior loot, storm that actually cuts the road). The tool’s traffic vs kill overlays show whether a new POI is getting walks or just sitting next to the highway. Death-zone overlay is the same picture, sparser — good for checking camp-and-die spots after a bot-density change.
+## 3. Storm deaths are rare overall — but much deadlier on smaller maps
+
+### What caught my eye
+Storm markers (`KilledByStorm`) are sparse on Ambrose Valley heatmaps, but Lockdown shows a higher storm death rate per match.
+
+### Evidence
+| Map | Storm deaths | Per 100 matches |
+|-----|-------------:|----------------:|
+| AmbroseValley | 17 | **3.0** |
+| GrandRift | 5 | **8.5** |
+| Lockdown | 17 | **9.9** |
+
+Total storm deaths in the dataset: **39** (very rare vs 12,885 loot events).
+
+### Why a Level Designer should care
+On Ambrose Valley the storm may be too forgiving (low educational pressure). On Lockdown/Grand Rift it may clip fights or extracts too hard relative to map size — players die to zone before learning routes.
+
+### Actionable
+| Metric to watch | Action |
+|-----------------|--------|
+| Storm deaths / match by map | Soften Lockdown storm speed or widen safe corridors toward extract |
+| Extract attempts vs storm deaths | Add earlier storm telegraphs / minimap safe-zone preview on small maps |
+| Loot-per-life vs storm deaths | If loot stays high (~16.5 loot events per human journey) while storm kills stay tiny on Ambrose, consider faster late-circle pressure so extracts feel earned |
+
+---
+
+## How to reproduce in the tool
+
+1. Open https://github.com/megha221/Lila_Assignment/
+2. For insight 1: enable **Kill zones** heatmap on Ambrose Valley; scrub matches with high BotKill counts.
+3. For insight 2: switch **Map** between Ambrose Valley and Grand Rift — note match list length.
+4. For insight 3: filter Lockdown, enable death heatmap, look for purple storm diamonds vs pink bot-death markers.

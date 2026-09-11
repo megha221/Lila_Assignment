@@ -1,45 +1,18 @@
 # LILA Player Journey Viz
 
-Web tool for LILA Games Level Designers to explore how players actually move, loot, and fight on LILA BLACK maps.
+Web tool for LILA Games Level Designers to explore player journeys on LILA BLACK maps.
 
 ## Live demo
 
-**https://megha221.github.io/Lila_Assignment/**
+**https://github.com/megha221/Lila_Assignment**
 
-Hosted on GitHub Pages (static Vite build). No login, no env vars.
+Hosted on GitHub Pages (static export of the Next.js app).
 
-## Walkthrough
-
-1. **First paint**  
-   Ambrose Valley loads with a busy default match. **Solid cyan** = human path; **dashed gray** = bots. Orange dot = last / live position.
-
-2. **Read the markers**  
-   Open **Legend** if it is collapsed:
-   - yellow square = Loot  
-   - red / orange triangle = Kill / Bot kill  
-   - pink / red circle = Death / killed by bot  
-   - purple diamond = Storm death  
-
-   Hover a marker for type and match time.
-
-3. **Filter**  
-   **Map → Date → Match** (right panel). Matches are sorted by humans, then combat, then loot. Stats under the filters are for the selected match. Use **Prev / Next** to step through the list.
-
-4. **Playback**  
-   **Play** watches the match unfold (default **8×** — sessions are ~6–15 minutes). Drag the scrubber, change **Speed**, or **Reset**. Spacebar toggles play when focus is not in a control.
-
-5. **Heatmaps**  
-   **Overlays**: Traffic, Kill zones, or Death zones. These use **all days on the selected map**, not only this match. Set **Off** to clear.
-
-6. **Layer toggles**  
-   Uncheck **Paths**, **Bots**, or **Events** to compare a heatmap against human-only routes.
-
-7. **Compare maps**  
-   Switch to **Grand Rift** or **Lockdown** and repeat filters + heatmaps. See [INSIGHTS.md](./INSIGHTS.md) for why the three maps feel so different.
+Minimaps are shipped as 1024×1024 JPEGs (~140KB each) so the first load stays light. The full match catalog loads in the background after the default match is shown.
 
 ## Features
 
-- Player paths on the correct minimap (world → image UV)
+- Player paths on the correct minimap (world → pixel mapping)
 - Human vs bot styling
 - Event markers: loot, kills, deaths, storm deaths
 - Filters by map, date, and match
@@ -47,11 +20,40 @@ Hosted on GitHub Pages (static Vite build). No login, no env vars.
 - Heatmap overlays: traffic, kill zones, death zones
 - Layer toggles (paths / bots / events)
 
+## Walkthrough
+
+Open the live app: **https://megha221.github.io/lila-Assignment/**
+
+1. **First paint**  
+   The default Ambrose Valley match loads on the minimap. Blue **solid** lines are humans; gray **dashed** lines are bots. Orange end-dot = last position; green = live position while playing.
+
+2. **Read the markers**  
+   Open **Legend** if collapsed:
+   - yellow square = Loot  
+   - red/orange triangle = Kill / BotKill  
+   - pink/red circle = Death / BotKilled  
+   - purple diamond = Killed by storm  
+
+3. **Filter**  
+   Use **Map**, **Date**, then **Match** (right panel). Match list is sorted by event richness. Stats under the filters show humans / bots / event breakdown for the selected match.
+
+4. **Playback**  
+   Click **Play** to watch the match unfold, or drag the timeline scrubber. Use **Speed** (0.5×–4×) and **Reset** to restart from the beginning.
+
+5. **Heatmaps**  
+   Under **Overlays**, pick **Traffic**, **Kill zones**, or **Death zones**. These use all days on the selected map (not only the current match). Set back to **Off** to clear.
+
+6. **Layer toggles**  
+   Uncheck **Paths**, **Bots**, or **Events** to declutter — useful when comparing a heatmap against human-only routes.
+
+7. **Compare maps**  
+   Switch Map to **Grand Rift** or **Lockdown** and repeat filters + heatmaps to see play-rate and hot-spot differences (see [INSIGHTS.md](./INSIGHTS.md)).
+
 ## Tech stack
 
 | Layer | Choice |
-|--------|--------|
-| Frontend | Vite + React + TypeScript |
+|-------|--------|
+| Frontend | Next.js 15 + React + TypeScript |
 | Rendering | HTML Canvas |
 | Data prep | Python + PyArrow (parquet → JSON) |
 | Hosting | GitHub Pages |
@@ -69,7 +71,7 @@ pip install -r scripts/requirements.txt
 python scripts/build_data.py
 ```
 
-Writes JSON + 1024px minimaps into `web/public/`.
+This writes JSON + minimaps into `web/public/`.
 
 ### 2. Run the web app locally
 
@@ -79,15 +81,26 @@ npm install
 npm run dev
 ```
 
-Open the URL Vite prints (usually http://localhost:5173).
+Open [http://localhost:3000](http://localhost:3000).
 
-Production preview:
+Production (local):
 
 ```bash
 cd web
 npm run build
-npm run preview
+npx serve out
 ```
+
+### Deploy to GitHub Pages
+
+```bash
+cd web
+npm run build:gh
+touch out/.nojekyll
+npx gh-pages -d out --dotfiles -m "Deploy"
+```
+
+Site: https://megha221.github.io/lila-Assignment/
 
 ## Docs
 
@@ -97,10 +110,11 @@ npm run preview
 ## Project layout
 
 ```
-├── player_data/           # Source parquet + minimaps + README
-├── scripts/build_data.py  # Parquet → JSON pipeline
-├── web/                   # Vite app
-│   └── public/            # Processed JSON + minimaps
+lila/
+├── player_data/          # Source parquet + minimaps + README
+├── scripts/build_data.py # Parquet → JSON pipeline
+├── web/                  # Next.js app
+│   └── public/data/      # Processed match/heatmap JSON
 ├── ARCHITECTURE.md
 ├── INSIGHTS.md
 └── README.md
@@ -108,4 +122,4 @@ npm run preview
 
 ## Env vars
 
-None required.
+None required for the deployed static/JSON-backed app.

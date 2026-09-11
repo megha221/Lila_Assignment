@@ -1,76 +1,97 @@
 # Architecture
 
-Static tool for Level Designers: parquet is compiled once into JSON, then a Vite app draws it on the minimap. No backend, no env vars.
+Overview of the LILA BLACK Player Journey Visualization tool.
 
-## Stack
+## What we built (and why)
 
-| Layer | Choice | Why |
-|--------|--------|-----|
-| Pipeline | Python + PyArrow + Pillow | Fast parquet read; one script writes everything the browser needs |
-| App | Vite + React + TypeScript | Fast local loop, static `dist/` for GitHub Pages |
-| Render | HTML Canvas | 15+ paths + heat + markers at 60-ish UI updates; DOM SVG would be heavier |
-| Host | GitHub Pages | Shareable URL, no server to keep alive |
+| Piece | Choice | Why |
+|-------|--------|-----|
+| Data prep | Python + PyArrow | Fast parquet decode, easy batch transforms, matches the provided schema |
+| Web app | Next.js 15 + React + TypeScript | Simple static hosting, clear component structure, good DX |
+| Rendering | HTML Canvas | Paths, markers, and heatmaps on a 1024×1024 minimap without a heavy map library |
+| Hosting | GitHub Pages (static export) | Shareable URL with no server; Vercel CLI auth was unavailable in this environment |
 
-Considered Streamlit (quick, weaker map UX) and Next.js (unnecessary SSR for a local JSON app).
+We optimized for **Level Designer usability** over data-science dashboards: map-first layout, filters, playback, and heatmap toggles.
 
 ## Data flow
 
 ```
-player_data/*.nakama-0  ──►  scripts/build_data.py  ──►  web/public/
-     parquet + README              decode, UV, heat          catalog.json
-     + full-res minimaps           resize maps to 1024      matches/{id}.json
-                                                            heatmaps.json
-                                                            minimaps/*.jpg
-                                                                   │
-                                                                   ▼
-                                                          Vite app fetch
-                                                          catalog → one match
-                                                          canvas draw
+player_data/*.nakama-0 (parquet)
+        │
+        ▼
+ scripts/build_data.py
+        │
+        ├─► web/public/data/bootstrap.json   (tiny default match for fast first paint)
+        ├─► web/public/data/index.json       (full match catalog for filters)
+        ├─► web/public/data/matches/<id>.json
+        ├─► web/public/data/heatmaps/<map>.json
+        ├─► web/public/data/maps.json
+        └─► web/public/minimaps/*_Minimap.jpg  (1024×1024 web-sized)
+                │
+                ▼
+        Browser (JourneyViewer)
+                │
+                ├─ load bootstrap + maps → pick default match
+                ├─ load match JSON + minimap → canvas paint
+                ├─ load index.json in background → filters
+                └─ load heatmap only when overlay selected
 ```
 
-1. **Catalog** (~125 KB) loads first: maps, dates, 796 match summaries, default match id.
-2. **One match JSON** loads on selection (default ~26 KB). Paths are `[t, u, v]`; events are `[t, u, v, type]`.
-3. **Heatmaps** (64×64, all days per map) load once. Overlay is not limited to the selected match.
-4. Source minimaps are 2k–9k px; the pipeline writes **1024×1024 JPEGs** so first paint stays light.
+Each parquet file is one player/bot in one match. The pipeline groups by `match_id`, converts world `(x, z)` → pixel `(px, py)`, downsamples long paths, and writes per-match JSON.
 
-The browser never reads parquet.
+## World → minimap coordinate mapping
 
-## Coordinate mapping
+From the dataset README (images are treated as **1024×1024** logical space):
 
-README world system: plot **`x` + `z`**. **`y` is height** and is dropped.
-
-Each map has `scale`, `origin_x`, `origin_z`. UV in the JSON is **image space** (origin top-left):
+| Map | Scale | Origin X | Origin Z |
+|-----|-------|----------|----------|
+| AmbroseValley | 900 | -370 | -473 |
+| GrandRift | 581 | -290 | -290 |
+| Lockdown | 1000 | -500 | -500 |
 
 ```
 u = (x - origin_x) / scale
-v = 1 - (z - origin_z) / scale     # flip: game Z-up vs image Y-down
-
-pixel_x = u * width
-pixel_y = v * height
+v = (z - origin_z) / scale
+pixel_x = u * 1024
+pixel_y = (1 - v) * 1024   # flip Y (image origin is top-left)
 ```
 
-README example (Ambrose Valley, `x=-301.45`, `z=-355.55`) lands at **~(78, 890)** in 1024 space. All 89,104 points fall inside `[0,1]` UV.
+Notes:
+- Use **`x` and `z` only** for 2D plotting; `y` is elevation.
+- Heatmap grids (64×64) use the same UV space so overlays align with paths.
+- Source minimap art is much larger than 1024px; we resize to 1024 JPEG for load time while keeping the same logical mapping.
 
-The README says minimaps are 1024×1024; the files are larger (4320 / 2160 / 9000). We still use the README UV math, then scale to the image we actually draw.
+## Assumptions
 
-## Assumptions (ambiguous data)
+| Ambiguity | Assumption |
+|-----------|------------|
+| `ts` looks like epoch dates in 1970 | Treat as **match-relative ordering** only; normalize to `t - t_min` per match. Playback stretches a match over ~20s wall-clock because raw spans are only hundreds of ms. |
+| Calendar date for filters | Use the **folder date** (`February_10` → `2026-02-10`), not `ts`. |
+| Filename / `user_id` bot detection | Numeric id → bot; UUID → human (per dataset README). |
+| Points slightly outside 0–1 UV | Clamp out of heatmap bins; paths still draw (rare). |
+| Many matches have a single human file | Still valid journeys; bots may be missing from telemetry for that match. |
+| Event bytes in parquet | Decode UTF-8; unknown events kept as markers. |
 
-| Ambiguity | What we did |
-|-----------|-------------|
-| `event` is bytes | Decode UTF-8. |
-| UUID vs numeric `user_id` | UUID = human, numeric = bot (filename and rows agree). |
-| `ts` declared `timestamp[ms]` but values are unix **seconds** (they land on Feb 10–14 2026). Read as ms they all sit in 1970 and every match looks like &lt;1s. | Store match-relative **milliseconds**: `(ts_sec - match_min) * 1000`. Playback 1× = real duration (~6–15 min). |
-| Calendar date | Filter by **folder** (`February_10` → `2026-02-10`), not the 1970 parquet clock. Folder dates match the decoded unix days. |
-| 743 / 796 matches have one player file | Reconstruct what we have; UI warns when a match is a single file. |
-| Heat “traffic” | Human `Position` only — bot patrols would wash out LD signal. Kills = `Kill`+`BotKill`. Deaths = `Killed`+`BotKilled`+`KilledByStorm`. |
+## Major tradeoffs
 
-## Tradeoffs
+| Decision | Alternatives considered | Chose this because |
+|----------|-------------------------|-------------------|
+| Precompute JSON vs query parquet in browser | DuckDB-WASM / on-the-fly parse | Smaller runtime, simpler hosting, predictable UX |
+| Canvas vs MapLibre/Leaflet | Map libraries | Overkill for fixed minimap images; canvas is enough |
+| Full index upfront vs bootstrap | Load all 796 matches before paint | Bootstrap (~0.4KB) + background index → faster first paint |
+| Full-res minimaps vs 1024 JPEG | Keep original 2–11MB assets | Originals dominated load time; 1024 matches logical coords |
+| GitHub Pages vs Vercel | Vercel | Pages worked with existing GitHub auth when Vercel token failed |
+| Match-relative playback stretch | Show raw ms | Raw durations are too short to scrub meaningfully |
 
-| Decision | Alternatives | Why this |
-|----------|--------------|----------|
-| Per-match JSON + catalog | One 3 MB blob | First paint is catalog + one match; filters stay on the client |
-| Precomputed 64×64 heat | Compute in the browser | Instant overlay; 64 cells ≈ 16 px on a 1024 map |
-| Resize minimaps to 1024 JPG | Ship 9k source images | ~118 KB each vs several MB |
-| Canvas, not Mapbox/WebGL | Extra library | Three maps, no tiles, no GIS |
-| Default 8× playback | 1× only | Median match is ~6–7 minutes; LDs need to scrub fast |
-| Keep all path samples | Thin to 2 px | 89k points already compact once UV-rounded |
+## Repo layout
+
+```
+lila/
+├── player_data/           # source parquet + original minimaps
+├── scripts/build_data.py  # ETL
+├── web/                   # Next.js app
+│   └── public/data/       # generated artifacts
+├── ARCHITECTURE.md
+├── INSIGHTS.md
+└── README.md
+```
