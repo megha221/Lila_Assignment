@@ -22,7 +22,7 @@ Minimaps are shipped as 1024×1024 JPEGs (~140KB each) so the first load stays l
 
 ## Walkthrough
 
-Open the live app: **https://megha221.github.io/lila-Assignment/**
+Open the live app: **https://megha221.github.io/Lila_Assignment/**
 
 1. **First paint**  
    The default Ambrose Valley match loads on the minimap. Blue **solid** lines are humans; gray **dashed** lines are bots. Orange end-dot = last position; green = live position while playing.
